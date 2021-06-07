@@ -164,10 +164,10 @@ func threshold(out *bar.Segment, urgent bool, color ...bool) *bar.Segment {
 }
 
 func main() {
-	material.Load(home("fonts/material-design-icons"))
-	mdi.Load(home("fonts/MaterialDesign-Webfont"))
-	typicons.Load(home("fonts/typicons.font"))
-	fontawesome.Load(home("fonts/Font-Awesome"))
+	material.Load(home("dev/fonts/material-design-icons"))
+	mdi.Load(home("dev/fonts/MaterialDesign-Webfont"))
+	typicons.Load(home("dev/fonts/typicons.font"))
+	fontawesome.Load(home("dev/fonts/Font-Awesome"))
 
 	colors.LoadBarConfig()
 	bg := colors.Scheme("background")
