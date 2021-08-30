@@ -32,7 +32,6 @@ import (
 	"barista.run/group/modal"
 	"barista.run/modules/battery"
 	"barista.run/modules/clock"
-	"barista.run/modules/cputemp"
 	"barista.run/modules/diskio"
 	"barista.run/modules/diskspace"
 	"barista.run/modules/media"
@@ -52,7 +51,6 @@ import (
 	"barista.run/pango/icons/typicons"
 
 	colorful "github.com/lucasb-eyer/go-colorful"
-	"github.com/martinlindhe/unit"
 )
 
 var spacer = pango.Text(" ").XXSmall()
@@ -106,11 +104,8 @@ func mediaFormatFunc(m media.Info) bar.Output {
 	if m.PlaybackStatus == media.Stopped || m.PlaybackStatus == media.Disconnected {
 		return nil
 	}
-	artist := truncate(m.Artist, 35)
-	title := truncate(m.Title, 70-len(artist))
-	if len(title) < 35 {
-		artist = truncate(m.Artist, 35-len(title))
-	}
+	artist := truncate(m.Artist, 50)
+	title := truncate(m.Title, 70)
 	var iconAndPosition bar.Output
 	if m.PlaybackStatus == media.Playing {
 		iconAndPosition = outputs.Repeat(func(time.Time) bar.Output {
@@ -186,7 +181,7 @@ func main() {
 		Output(time.Second, func(now time.Time) bar.Output {
 			return outputs.Pango(
 				pango.Icon("material-today").Alpha(0.6),
-				now.Format("Mon Jan 2"),
+				now.Format("Monday 2 January"),
 			).OnClick(click.RunLeft("gsimplecal"))
 		})
 
@@ -292,7 +287,7 @@ func main() {
 		return out
 	}), 1)
 
-	vol := volume.New(pulseaudio.DefaultSink()).Output(func(v volume.Volume) bar.Output {
+	vol := volume.New(pulseaudio.Sink("alsa_output.usb-MOTU_M2_M20000034226-00.analog-stereo")).Output(func(v volume.Volume) bar.Output {
 		if v.Mute {
 			return outputs.
 				Pango(pango.Icon("fa-volume-mute").Alpha(0.8), spacer, "MUT").
@@ -362,21 +357,21 @@ func main() {
 		)
 	})
 
-	temp := cputemp.OfType("Processor").
-		RefreshInterval(2 * time.Second).
-		Output(func(temp unit.Temperature) bar.Output {
-			out := outputs.Pango(
-				pango.Icon("mdi-fan").Alpha(0.6), spacer,
-				pango.Textf("%2d℃", int(temp.Celsius())),
-			)
-			threshold(out,
-				temp.Celsius() > 90,
-				temp.Celsius() > 70,
-				temp.Celsius() > 60,
-			)
-			return out
-		})
-
+	/*
+		temp := cputemp.New().RefreshInterval(2 * time.Second).
+			Output(func(temp unit.Temperature) bar.Output {
+				out := outputs.Pango(
+					pango.Icon("mdi-fan").Alpha(0.6), spacer,
+					pango.Textf("%2d℃", int(temp.Celsius())),
+				)
+				threshold(out,
+					temp.Celsius() > 90,
+					temp.Celsius() > 70,
+					temp.Celsius() > 60,
+				)
+				return out
+			})
+	*/
 	sub := netlink.Any()
 	iface := sub.Get().Name
 	sub.Unsubscribe()
@@ -433,10 +428,7 @@ func main() {
 	mainModal := modal.New()
 	sysMode := mainModal.Mode("sysinfo").
 		SetOutput(makeIconOutput("mdi-chart-areaspline")).
-		Add(loadAvg).
-		Detail(loadAvgDetail).
-		Add(freeMem).
-		Detail(swapMem, temp)
+		Detail(loadAvg, loadAvgDetail, freeMem, swapMem)
 	if homeDiskspace != nil {
 		sysMode.Detail(homeDiskspace)
 	}
@@ -447,8 +439,8 @@ func main() {
 		Detail(wifiDetails, net, netsp)
 	mainModal.Mode("media").
 		SetOutput(makeIconOutput("mdi-music-box")).
-		Add(vol, mediaSummary).
-		Detail(mediaDetail)
+		Add(mediaDetail, vol).
+		Detail(mediaSummary)
 	mainModal.Mode("battery").
 		// Filled in by the battery module if one is available.
 		SetOutput(nil).
@@ -456,10 +448,9 @@ func main() {
 		Detail(battDetail)
 	mainModal.Mode("timezones").
 		SetOutput(makeIconOutput("material-access-time")).
-		Detail(makeTzClock("Seattle", "America/Los_Angeles")).
-		Detail(makeTzClock("New York", "America/New_York")).
+		Detail(makeTzClock("West Coast", "America/Los_Angeles")).
+		Detail(makeTzClock("East Coast", "America/New_York")).
 		Detail(makeTzClock("UTC", "Etc/UTC")).
-		Detail(makeTzClock("Tokyo", "Asia/Tokyo")).
 		Add(localdate)
 
 	var mm bar.Module
