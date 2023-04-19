@@ -40,8 +40,6 @@ import (
 	"barista.run/modules/netinfo"
 	"barista.run/modules/netspeed"
 	"barista.run/modules/sysinfo"
-	"barista.run/modules/volume"
-	"barista.run/modules/volume/pulseaudio"
 	"barista.run/modules/wlan"
 	"barista.run/outputs"
 	"barista.run/pango"
@@ -50,7 +48,7 @@ import (
 	"barista.run/pango/icons/mdi"
 	"barista.run/pango/icons/typicons"
 
-	colorful "github.com/lucasb-eyer/go-colorful"
+	"github.com/lucasb-eyer/go-colorful"
 )
 
 var spacer = pango.Text(" ").XXSmall()
@@ -159,10 +157,22 @@ func threshold(out *bar.Segment, urgent bool, color ...bool) *bar.Segment {
 }
 
 func main() {
-	material.Load(home("dev/fonts/material-design-icons"))
-	mdi.Load(home("dev/fonts/MaterialDesign-Webfont"))
-	typicons.Load(home("dev/fonts/typicons.font"))
-	fontawesome.Load(home("dev/fonts/Font-Awesome"))
+	err := material.Load(home("dev/moka/fonts/material-design-icons"))
+	if err != nil {
+		panic(err)
+	}
+	err = mdi.Load(home("dev/moka/fonts/MaterialDesign-Webfont"))
+	if err != nil {
+		panic(err)
+	}
+	err = typicons.Load(home("dev/moka/fonts/typicons.font"))
+	if err != nil {
+		panic(err)
+	}
+	err = fontawesome.Load(home("dev/moka/fonts/Font-Awesome"))
+	if err != nil {
+		panic(err)
+	}
 
 	colors.LoadBarConfig()
 	bg := colors.Scheme("background")
@@ -270,6 +280,7 @@ func main() {
 		// First segment shown in summary mode only.
 		out.Append(outputs.Pango(
 			pango.Icon("mdi-wifi").Alpha(0.6),
+			pango.Text(" "),
 			pango.Text(truncate(i.SSID, -9)),
 		).OnClick(click.Left(func() {
 			mainModalController.Toggle("network")
@@ -287,25 +298,28 @@ func main() {
 		return out
 	}), 1)
 
-	vol := volume.New(pulseaudio.Sink("alsa_output.usb-MOTU_M2_M20000034226-00.analog-stereo")).Output(func(v volume.Volume) bar.Output {
-		if v.Mute {
-			return outputs.
-				Pango(pango.Icon("fa-volume-mute").Alpha(0.8), spacer, "MUT").
-				Color(colors.Scheme("degraded"))
-		}
-		iconName := "off"
-		pct := v.Pct()
-		if pct > 66 {
-			iconName = "up"
-		} else if pct > 33 {
-			iconName = "down"
-		}
-		return outputs.Pango(
-			pango.Icon("fa-volume-"+iconName).Alpha(0.6),
-			spacer,
-			pango.Textf("%2d%%", pct),
-		)
-	})
+	/*
+		vol := volume.New(pulseaudio.DefaultSink()).Output(func(v volume.Volume) bar.Output {
+			if v.Mute {
+				return outputs.
+					Pango(pango.Icon("fa-volume-mute").Alpha(0.8), spacer, "MUT").
+					Color(colors.Scheme("degraded"))
+			}
+			iconName := "off"
+			pct := v.Pct()
+			if pct > 66 {
+				iconName = "up"
+			} else if pct > 33 {
+				iconName = "down"
+			}
+			return outputs.Pango(
+				pango.Icon("fa-volume-"+iconName).Alpha(0.6),
+				spacer,
+				pango.Textf("%2d%%", pct),
+			)
+		})
+
+	*/
 
 	loadAvg := sysinfo.New().Output(func(s sysinfo.Info) bar.Output {
 		out := outputs.Pango(
@@ -372,6 +386,7 @@ func main() {
 				return out
 			})
 	*/
+
 	sub := netlink.Any()
 	iface := sub.Get().Name
 	sub.Unsubscribe()
@@ -433,27 +448,25 @@ func main() {
 		sysMode.Detail(homeDiskspace)
 	}
 	sysMode.Detail(rootDiskspace, mainDiskio)
+	mainModal.Mode("media").
+		SetOutput(makeIconOutput("mdi-music-box")).
+		Add(mediaDetail).
+		Detail(mediaSummary)
 	mainModal.Mode("network").
 		SetOutput(makeIconOutput("mdi-ethernet")).
 		Summary(wifiName).
 		Detail(wifiDetails, net, netsp)
-	mainModal.Mode("media").
-		SetOutput(makeIconOutput("mdi-music-box")).
-		Add(mediaDetail, vol).
-		Detail(mediaSummary)
 	mainModal.Mode("battery").
 		// Filled in by the battery module if one is available.
 		SetOutput(nil).
-		Summary(battSummary).
 		Detail(battDetail)
 	mainModal.Mode("timezones").
 		SetOutput(makeIconOutput("material-access-time")).
 		Detail(makeTzClock("West Coast", "America/Los_Angeles")).
 		Detail(makeTzClock("East Coast", "America/New_York")).
-		Detail(makeTzClock("UTC", "Etc/UTC")).
-		Add(localdate)
+		Detail(makeTzClock("UTC", "Etc/UTC"))
 
 	var mm bar.Module
 	mm, mainModalController = mainModal.Build()
-	panic(barista.Run(mm, localtime))
+	panic(barista.Run(mm, battSummary, localdate, localtime))
 }
